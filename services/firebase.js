@@ -16,6 +16,7 @@ const configuration = {
 };
 
 firebase.peerConnection = null;
+firebase.peerConnection2 = null;
 firebase.localStream = null;
 firebase.remoteStream = null;
 firebase.remoteStream2 = null;
@@ -26,48 +27,66 @@ firebase.joinRoomById = async (roomId) => {
     const roomSnapshot = await roomRef.get();
     console.log('Got room:', roomSnapshot.exists);
     if (roomSnapshot.exists) {
-        console.log('Create PeerConnection with configuration: ', configuration);
         firebase.peerConnection = new RTCPeerConnection(configuration);
+        firebase.peerConnection2 = new RTCPeerConnection(configuration);
+
         firebase.registerPeerConnectionListeners();
         firebase.localStream.getTracks().forEach(track => {
             firebase.peerConnection.addTrack(track, firebase.localStream);
+            firebase.peerConnection2.addTrack(track, firebase.localStream);
         });
-        const offers = await roomSnapshot.data().offers;
-        console.log("Got offer:", offers[0]);
-        firebase.idUser = offers.length;
+        const offers = await roomSnapshot.data();
+        firebase.idUser = Object.keys(offers).length;
+        console.log(offers, firebase.idUser);
         const calleeCandidatesCollection = roomRef.collection(`calleeCandidates${firebase.idUser}`);
         firebase.peerConnection.addEventListener('icecandidate', event => {
             if (!event.candidate) {
-                console.log('Got final candidate!');
                 return;
             }
-            console.log('Got candidate: ', event.candidate);
+            calleeCandidatesCollection.add(event.candidate.toJSON());
+        });
+        firebase.peerConnection2.addEventListener('icecandidate', event => {
+            if (!event.candidate) {
+                return;
+            }
             calleeCandidatesCollection.add(event.candidate.toJSON());
         });
         firebase.peerConnection.addEventListener('track', event => {
-            console.log('Got remote track:', event.streams[0]);
             event.streams[0].getTracks().forEach(track => {
                 console.log('Add a track to the remoteStream:', track);
                 firebase.remoteStream.addTrack(track);
             });
         });
+        firebase.peerConnection2.addEventListener('track', event => {
+            event.streams[0].getTracks().forEach(track => {
+                console.log('Add a track to the remoteStream:', track);
+                firebase.remoteStream2.addTrack(track);
+            });
+        });
         if (firebase.idUser === 0) {
             const offer = await firebase.peerConnection.createOffer();
-            console.log('Created offer:', offer);
+            const offer2 = await firebase.peerConnection2.createOffer();
             await firebase.peerConnection.setLocalDescription(offer);
+            await firebase.peerConnection2.setLocalDescription(offer2);
             const roomWithAnswer = {
-                offers: [{
+                offer0: [{}, {
                     type: offer.type,
                     sdp: offer.sdp,
+                }, {
+                    type: offer2.type,
+                    sdp: offer2.sdp,
                 }],
             };
             await roomRef.update(roomWithAnswer);
             roomRef.onSnapshot(async snapshot => {
                 const data = snapshot.data();
-                if (!firebase.peerConnection.currentRemoteDescription && data && data.offers[1]) {
-                    console.log('Got remote description: ', data.offers[1]);
-                    const rtcSessionDescription = new RTCSessionDescription(data.offers[1]);
+                if (!firebase.peerConnection.currentRemoteDescription && data && data.offer1) {
+                    const rtcSessionDescription = new RTCSessionDescription(data.offer1[0]);
                     await firebase.peerConnection.setRemoteDescription(rtcSessionDescription);
+                }
+                if (!firebase.peerConnection2.currentRemoteDescription && data && data.offer2) {
+                    const rtcSessionDescription = new RTCSessionDescription(data.offer2[0]);
+                    await firebase.peerConnection2.setRemoteDescription(rtcSessionDescription);
                 }
             });
             roomRef.collection(`calleeCandidates${1}`).onSnapshot(snapshot => {
@@ -79,15 +98,35 @@ firebase.joinRoomById = async (roomId) => {
                     }
                 });
             });
-        } else {
-            await firebase.peerConnection.setRemoteDescription(new RTCSessionDescription(offers[0]));
+            roomRef.collection(`calleeCandidates${2}`).onSnapshot(snapshot => {
+                snapshot.docChanges().forEach(async change => {
+                    if (change.type === 'added') {
+                        let data = change.doc.data();
+                        console.log(`Got new remote ICE candidate: ${JSON.stringify(data)}`);
+                        await firebase.peerConnection2.addIceCandidate(new RTCIceCandidate(data));
+                    }
+                });
+            });
+        } else if (firebase.idUser === 1) {
+            await firebase.peerConnection.setRemoteDescription(new RTCSessionDescription(offers.offer0[1]));
+            const offer2 = await firebase.peerConnection2.createOffer();
             const answer = await firebase.peerConnection.createAnswer();
-            console.log('Created answer:', answer);
             await firebase.peerConnection.setLocalDescription(answer);
+            await firebase.peerConnection2.setLocalDescription(offer2);
+            roomRef.onSnapshot(async snapshot => {
+                const data = snapshot.data();
+                if (!firebase.peerConnection2.currentRemoteDescription && data && data.offer2) {
+                    const rtcSessionDescription = new RTCSessionDescription(data.offer2[1]);
+                    await firebase.peerConnection2.setRemoteDescription(rtcSessionDescription);
+                }
+            });
             const roomWithAnswer = {
-                offers: [...offers, {
+                offer1: [{
                     type: answer.type,
                     sdp: answer.sdp,
+                }, {}, {
+                    type: offer2.type,
+                    sdp: offer2.sdp
                 }],
             };
             await roomRef.update(roomWithAnswer);
@@ -95,8 +134,48 @@ firebase.joinRoomById = async (roomId) => {
                 snapshot.docChanges().forEach(async change => {
                     if (change.type === 'added') {
                         let data = change.doc.data();
-                        console.log(`Got new remote ICE candidate: ${JSON.stringify(data)}`);
                         await firebase.peerConnection.addIceCandidate(new RTCIceCandidate(data));
+                    }
+                });
+            });
+            roomRef.collection(`calleeCandidates${2}`).onSnapshot(snapshot => {
+                snapshot.docChanges().forEach(async change => {
+                    if (change.type === 'added') {
+                        let data = change.doc.data();
+                        await firebase.peerConnection2.addIceCandidate(new RTCIceCandidate(data));
+                    }
+                });
+            });
+        } else if (firebase.idUser === 2) {
+            await firebase.peerConnection.setRemoteDescription(new RTCSessionDescription(offers.offer0[2]));
+            await firebase.peerConnection2.setRemoteDescription(new RTCSessionDescription(offers.offer1[2]));;
+            const answer = await firebase.peerConnection.createAnswer();
+            const answer2 = await firebase.peerConnection2.createAnswer();
+            await firebase.peerConnection.setLocalDescription(answer);
+            await firebase.peerConnection2.setLocalDescription(answer2);
+            const roomWithAnswer = {
+                offer2: [{
+                    type: answer.type,
+                    sdp: answer.sdp,
+                }, {
+                    type: answer2.type,
+                    sdp: answer2.sdp
+                }, {}],
+            };
+            await roomRef.update(roomWithAnswer);
+            roomRef.collection(`calleeCandidates${0}`).onSnapshot(snapshot => {
+                snapshot.docChanges().forEach(async change => {
+                    if (change.type === 'added') {
+                        let data = change.doc.data();
+                        await firebase.peerConnection.addIceCandidate(new RTCIceCandidate(data));
+                    }
+                });
+            });
+            roomRef.collection(`calleeCandidates${1}`).onSnapshot(snapshot => {
+                snapshot.docChanges().forEach(async change => {
+                    if (change.type === 'added') {
+                        let data = change.doc.data();
+                        await firebase.peerConnection2.addIceCandidate(new RTCIceCandidate(data));
                     }
                 });
             });
@@ -108,7 +187,6 @@ firebase.createRoom = async () => {
     const roomRef = await db.collection('rooms').doc();
 
     await roomRef.set({
-        offers: []
     });
     firebase.roomId = roomRef.id;
     console.log(`New room created with SDP offer. Room ID: ${roomRef.id}`);
