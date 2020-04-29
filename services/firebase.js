@@ -15,13 +15,10 @@ const configuration = {
     iceCandidatePoolSize: 10,
 };
 firebase.maxNbUser = 5;
-firebase.peerConnection = null;
 firebase.peerConnections = [];
 firebase.peerConnection2 = null;
 firebase.localStream = null;
-firebase.remoteStream = null;
 firebase.remoteStreams = Array(4);
-firebase.remoteStream2 = null;
 firebase.roomId = null;
 firebase.joinRoomById = async (roomId) => {
     const db = firebase.firestore();
@@ -36,16 +33,16 @@ firebase.joinRoomById = async (roomId) => {
             firebase.localStream.getTracks().forEach(track => {
                 firebase.peerConnections[i].addTrack(track, firebase.localStream);
             });
+            firebase.peerConnections[i].addEventListener('track', event => {
+                event.streams[0].getTracks().forEach(track => {
+                    firebase.remoteStreams[i].addTrack(track);
+                });
+            });
             firebase.peerConnections[i].addEventListener('icecandidate', event => {
                 if (!event.candidate) {
                     return;
                 }
                 calleeCandidatesCollection.add(event.candidate.toJSON());
-            });
-            firebase.peerConnections[i].addEventListener('track', event => {
-                event.streams[0].getTracks().forEach(track => {
-                    firebase.remoteStreams[i].addTrack(track);
-                });
             });
         }
 
@@ -81,7 +78,7 @@ firebase.joinRoomById = async (roomId) => {
                 }
             }
         });
-        for (let i = 0; i < firebase.maxNbUser; i++) {
+        for (let i = 0; i < firebase.idUser; i++) {
             if (i === firebase.idUser)
                 continue;
             roomRef.collection(`calleeCandidates${i}`).onSnapshot(snapshot => {
@@ -131,8 +128,6 @@ firebase.openUserMedia = async () => {
     const stream = await navigator.mediaDevices.getUserMedia(
         { video: true, audio: true });
     firebase.localStream = stream;
-    firebase.remoteStream = new MediaStream();
-    firebase.remoteStream2 = new MediaStream();
     firebase.remoteStreams = Array.from(Array(4).keys()).map(() => new MediaStream());
 }
 
