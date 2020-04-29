@@ -1,5 +1,4 @@
 import * as firebase from "firebase/app";
-
 import "firebase/auth";
 import "firebase/firestore";
 
@@ -19,13 +18,14 @@ firebase.peerConnections = [];
 firebase.localStream = null;
 firebase.remoteStreams = Array(4);
 firebase.roomId = null;
-firebase.joinRoomById = async (roomId) => {
+firebase.joinRoomById = async (roomId, name, setNames) => {
     const db = firebase.firestore();
     const roomRef = db.collection('rooms').doc(`${roomId}`);
     const roomSnapshot = await roomRef.get();
     if (roomSnapshot.exists) {
         const offers = await roomSnapshot.data();
         firebase.idUser = Object.keys(offers).length;
+        firebase.localStream.name = name;
         const calleeCandidatesCollection = roomRef.collection(`calleeCandidates${firebase.idUser}`);
         for (let i = 0; i < firebase.maxNbUser; i++) {
             firebase.peerConnections.push(new RTCPeerConnection(configuration));
@@ -36,7 +36,6 @@ firebase.joinRoomById = async (roomId) => {
                 event.streams[0].getTracks().forEach(track => {
                     firebase.remoteStreams[i].addTrack(track);
                 });
-                firebase.remoteStreams[i].haveTracks = true;
             });
             firebase.peerConnections[i].addEventListener('icecandidate', event => {
                 if (!event.candidate) {
@@ -48,7 +47,11 @@ firebase.joinRoomById = async (roomId) => {
 
         const arr = [];
         for (let i = 0; i < firebase.idUser; i++) {
-            await firebase.peerConnections[i].setRemoteDescription(new RTCSessionDescription(offers[`offer${i}`][firebase.idUser]));
+            await firebase.peerConnections[i].setRemoteDescription(new RTCSessionDescription(offers[`offer${i}`].offers[firebase.idUser]));
+            setNames(names => {
+                names[i] = offers[`offer${i}`].name;
+                return [...names];
+            });
             const answer = await firebase.peerConnections[i].createAnswer();
             await firebase.peerConnections[i].setLocalDescription(answer);
             arr.push({
@@ -66,15 +69,22 @@ firebase.joinRoomById = async (roomId) => {
             })
         }
         const roomWithAnswer = {
-            [`offer${firebase.idUser}`]: arr,
+            [`offer${firebase.idUser}`]: {
+                name,
+                offers: arr
+            },
         };
         await roomRef.update(roomWithAnswer);
         roomRef.onSnapshot(async snapshot => {
             const data = snapshot.data();
             for (let i = firebase.idUser; i < firebase.maxNbUser - 1; i++) {
                 if (!firebase.peerConnections[i].currentRemoteDescription && data && data[`offer${i + 1}`]) {
-                    const rtcSessionDescription = new RTCSessionDescription(data[`offer${i + 1}`][firebase.idUser]);
+                    const rtcSessionDescription = new RTCSessionDescription(data[`offer${i + 1}`].offers[firebase.idUser]);
                     await firebase.peerConnections[i].setRemoteDescription(rtcSessionDescription);
+                    setNames(names => {
+                        names[i] = data[`offer${i + 1}`].name;
+                        return [...names];
+                    });
                 }
             }
         });
@@ -96,11 +106,8 @@ firebase.createRoom = async () => {
     const db = firebase.firestore();
     const roomRef = await db.collection('rooms').doc();
 
-    await roomRef.set({
-    });
+    await roomRef.set({});
     firebase.roomId = roomRef.id;
-    console.log(`New room created with SDP offer. Room ID: ${roomRef.id}`);
-
     return roomRef.id;
 }
 
