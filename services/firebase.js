@@ -14,168 +14,81 @@ const configuration = {
     ],
     iceCandidatePoolSize: 10,
 };
-
+firebase.maxNbUser = 5;
 firebase.peerConnection = null;
+firebase.peerConnections = [];
 firebase.peerConnection2 = null;
 firebase.localStream = null;
 firebase.remoteStream = null;
+firebase.remoteStreams = Array(4);
 firebase.remoteStream2 = null;
 firebase.roomId = null;
 firebase.joinRoomById = async (roomId) => {
     const db = firebase.firestore();
     const roomRef = db.collection('rooms').doc(`${roomId}`);
     const roomSnapshot = await roomRef.get();
-    console.log('Got room:', roomSnapshot.exists);
     if (roomSnapshot.exists) {
-        firebase.peerConnection = new RTCPeerConnection(configuration);
-        firebase.peerConnection2 = new RTCPeerConnection(configuration);
-
-        firebase.registerPeerConnectionListeners();
-        firebase.localStream.getTracks().forEach(track => {
-            firebase.peerConnection.addTrack(track, firebase.localStream);
-            firebase.peerConnection2.addTrack(track, firebase.localStream);
-        });
         const offers = await roomSnapshot.data();
         firebase.idUser = Object.keys(offers).length;
-        console.log(offers, firebase.idUser);
         const calleeCandidatesCollection = roomRef.collection(`calleeCandidates${firebase.idUser}`);
-        firebase.peerConnection.addEventListener('icecandidate', event => {
-            if (!event.candidate) {
-                return;
+        for (let i = 0; i < firebase.maxNbUser; i++) {
+            firebase.peerConnections.push(new RTCPeerConnection(configuration));
+            firebase.localStream.getTracks().forEach(track => {
+                firebase.peerConnections[i].addTrack(track, firebase.localStream);
+            });
+            firebase.peerConnections[i].addEventListener('icecandidate', event => {
+                if (!event.candidate) {
+                    return;
+                }
+                calleeCandidatesCollection.add(event.candidate.toJSON());
+            });
+            firebase.peerConnections[i].addEventListener('track', event => {
+                event.streams[0].getTracks().forEach(track => {
+                    firebase.remoteStreams[i].addTrack(track);
+                });
+            });
+        }
+
+        const arr = [];
+        for (let i = 0; i < firebase.idUser; i++) {
+            await firebase.peerConnections[i].setRemoteDescription(new RTCSessionDescription(offers[`offer${i}`][firebase.idUser]));
+            const answer = await firebase.peerConnections[i].createAnswer();
+            await firebase.peerConnections[i].setLocalDescription(answer);
+            arr.push({
+                type: answer.type,
+                sdp: answer.sdp,
+            })
+        }
+        arr.push(null);
+        for (let i = firebase.idUser; i < firebase.maxNbUser - 1; i++) {
+            const offer = await firebase.peerConnections[i].createOffer();
+            await firebase.peerConnections[i].setLocalDescription(offer);
+            arr.push({
+                type: offer.type,
+                sdp: offer.sdp,
+            })
+        }
+        const roomWithAnswer = {
+            [`offer${firebase.idUser}`]: arr,
+        };
+        await roomRef.update(roomWithAnswer);
+        roomRef.onSnapshot(async snapshot => {
+            const data = snapshot.data();
+            for (let i = firebase.idUser; i < firebase.maxNbUser - 1; i++) {
+                if (!firebase.peerConnections[i].currentRemoteDescription && data && data[`offer${i + 1}`]) {
+                    const rtcSessionDescription = new RTCSessionDescription(data[`offer${i + 1}`][firebase.idUser]);
+                    await firebase.peerConnections[i].setRemoteDescription(rtcSessionDescription);
+                }
             }
-            calleeCandidatesCollection.add(event.candidate.toJSON());
         });
-        firebase.peerConnection2.addEventListener('icecandidate', event => {
-            if (!event.candidate) {
-                return;
-            }
-            calleeCandidatesCollection.add(event.candidate.toJSON());
-        });
-        firebase.peerConnection.addEventListener('track', event => {
-            event.streams[0].getTracks().forEach(track => {
-                console.log('Add a track to the remoteStream:', track);
-                firebase.remoteStream.addTrack(track);
-            });
-        });
-        firebase.peerConnection2.addEventListener('track', event => {
-            event.streams[0].getTracks().forEach(track => {
-                console.log('Add a track to the remoteStream:', track);
-                firebase.remoteStream2.addTrack(track);
-            });
-        });
-        if (firebase.idUser === 0) {
-            const offer = await firebase.peerConnection.createOffer();
-            const offer2 = await firebase.peerConnection2.createOffer();
-            await firebase.peerConnection.setLocalDescription(offer);
-            await firebase.peerConnection2.setLocalDescription(offer2);
-            const roomWithAnswer = {
-                offer0: [{}, {
-                    type: offer.type,
-                    sdp: offer.sdp,
-                }, {
-                    type: offer2.type,
-                    sdp: offer2.sdp,
-                }],
-            };
-            await roomRef.update(roomWithAnswer);
-            roomRef.onSnapshot(async snapshot => {
-                const data = snapshot.data();
-                if (!firebase.peerConnection.currentRemoteDescription && data && data.offer1) {
-                    const rtcSessionDescription = new RTCSessionDescription(data.offer1[0]);
-                    await firebase.peerConnection.setRemoteDescription(rtcSessionDescription);
-                }
-                if (!firebase.peerConnection2.currentRemoteDescription && data && data.offer2) {
-                    const rtcSessionDescription = new RTCSessionDescription(data.offer2[0]);
-                    await firebase.peerConnection2.setRemoteDescription(rtcSessionDescription);
-                }
-            });
-            roomRef.collection(`calleeCandidates${1}`).onSnapshot(snapshot => {
+        for (let i = 0; i < firebase.maxNbUser; i++) {
+            if (i === firebase.idUser)
+                continue;
+            roomRef.collection(`calleeCandidates${i}`).onSnapshot(snapshot => {
                 snapshot.docChanges().forEach(async change => {
                     if (change.type === 'added') {
                         let data = change.doc.data();
-                        console.log(`Got new remote ICE candidate: ${JSON.stringify(data)}`);
-                        await firebase.peerConnection.addIceCandidate(new RTCIceCandidate(data));
-                    }
-                });
-            });
-            roomRef.collection(`calleeCandidates${2}`).onSnapshot(snapshot => {
-                snapshot.docChanges().forEach(async change => {
-                    if (change.type === 'added') {
-                        let data = change.doc.data();
-                        console.log(`Got new remote ICE candidate: ${JSON.stringify(data)}`);
-                        await firebase.peerConnection2.addIceCandidate(new RTCIceCandidate(data));
-                    }
-                });
-            });
-        } else if (firebase.idUser === 1) {
-            await firebase.peerConnection.setRemoteDescription(new RTCSessionDescription(offers.offer0[1]));
-            const offer2 = await firebase.peerConnection2.createOffer();
-            const answer = await firebase.peerConnection.createAnswer();
-            await firebase.peerConnection.setLocalDescription(answer);
-            await firebase.peerConnection2.setLocalDescription(offer2);
-            roomRef.onSnapshot(async snapshot => {
-                const data = snapshot.data();
-                if (!firebase.peerConnection2.currentRemoteDescription && data && data.offer2) {
-                    const rtcSessionDescription = new RTCSessionDescription(data.offer2[1]);
-                    await firebase.peerConnection2.setRemoteDescription(rtcSessionDescription);
-                }
-            });
-            const roomWithAnswer = {
-                offer1: [{
-                    type: answer.type,
-                    sdp: answer.sdp,
-                }, {}, {
-                    type: offer2.type,
-                    sdp: offer2.sdp
-                }],
-            };
-            await roomRef.update(roomWithAnswer);
-            roomRef.collection(`calleeCandidates${0}`).onSnapshot(snapshot => {
-                snapshot.docChanges().forEach(async change => {
-                    if (change.type === 'added') {
-                        let data = change.doc.data();
-                        await firebase.peerConnection.addIceCandidate(new RTCIceCandidate(data));
-                    }
-                });
-            });
-            roomRef.collection(`calleeCandidates${2}`).onSnapshot(snapshot => {
-                snapshot.docChanges().forEach(async change => {
-                    if (change.type === 'added') {
-                        let data = change.doc.data();
-                        await firebase.peerConnection2.addIceCandidate(new RTCIceCandidate(data));
-                    }
-                });
-            });
-        } else if (firebase.idUser === 2) {
-            await firebase.peerConnection.setRemoteDescription(new RTCSessionDescription(offers.offer0[2]));
-            await firebase.peerConnection2.setRemoteDescription(new RTCSessionDescription(offers.offer1[2]));;
-            const answer = await firebase.peerConnection.createAnswer();
-            const answer2 = await firebase.peerConnection2.createAnswer();
-            await firebase.peerConnection.setLocalDescription(answer);
-            await firebase.peerConnection2.setLocalDescription(answer2);
-            const roomWithAnswer = {
-                offer2: [{
-                    type: answer.type,
-                    sdp: answer.sdp,
-                }, {
-                    type: answer2.type,
-                    sdp: answer2.sdp
-                }, {}],
-            };
-            await roomRef.update(roomWithAnswer);
-            roomRef.collection(`calleeCandidates${0}`).onSnapshot(snapshot => {
-                snapshot.docChanges().forEach(async change => {
-                    if (change.type === 'added') {
-                        let data = change.doc.data();
-                        await firebase.peerConnection.addIceCandidate(new RTCIceCandidate(data));
-                    }
-                });
-            });
-            roomRef.collection(`calleeCandidates${1}`).onSnapshot(snapshot => {
-                snapshot.docChanges().forEach(async change => {
-                    if (change.type === 'added') {
-                        let data = change.doc.data();
-                        await firebase.peerConnection2.addIceCandidate(new RTCIceCandidate(data));
+                        await firebase.peerConnections[i > firebase.idUser ? i - 1 : i].addIceCandidate(new RTCIceCandidate(data));
                     }
                 });
             });
@@ -220,6 +133,7 @@ firebase.openUserMedia = async () => {
     firebase.localStream = stream;
     firebase.remoteStream = new MediaStream();
     firebase.remoteStream2 = new MediaStream();
+    firebase.remoteStreams = Array.from(Array(4).keys()).map(() => new MediaStream());
 }
 
 const firebaseConfig = {

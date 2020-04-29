@@ -21,10 +21,11 @@ export default () => {
     return (
         <>
             <video ref={video => video && (video.srcObject = firebase.localStream)} muted autoPlay playsInline  ></video>
-            <video ref={video => video && (video.srcObject = firebase.remoteStream)} muted autoPlay playsInline  ></video>
-            <video ref={video => video && (video.srcObject = firebase.remoteStream2)} muted autoPlay playsInline  ></video>
-            <video id="#video4" autoPlay playsInline></video>
-            <video id="#video5" autoPlay playsInline></video>
+            <video ref={video => video && (video.srcObject = firebase.remoteStreams[0])} muted autoPlay playsInline  ></video>
+            <video ref={video => video && (video.srcObject = firebase.remoteStreams[1])} muted autoPlay playsInline  ></video>
+            <video ref={video => video && (video.srcObject = firebase.remoteStreams[2])} muted autoPlay playsInline  ></video>
+            <video ref={video => video && (video.srcObject = firebase.remoteStreams[3])} muted autoPlay playsInline  ></video>
+
         </>
     )
 }
