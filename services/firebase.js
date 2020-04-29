@@ -16,7 +16,6 @@ const configuration = {
 };
 firebase.maxNbUser = 5;
 firebase.peerConnections = [];
-firebase.peerConnection2 = null;
 firebase.localStream = null;
 firebase.remoteStreams = Array(4);
 firebase.roomId = null;
@@ -37,6 +36,7 @@ firebase.joinRoomById = async (roomId) => {
                 event.streams[0].getTracks().forEach(track => {
                     firebase.remoteStreams[i].addTrack(track);
                 });
+                firebase.remoteStreams[i].haveTracks = true;
             });
             firebase.peerConnections[i].addEventListener('icecandidate', event => {
                 if (!event.candidate) {
@@ -104,25 +104,6 @@ firebase.createRoom = async () => {
     return roomRef.id;
 }
 
-firebase.registerPeerConnectionListeners = () => {
-    firebase.peerConnection.addEventListener('icegatheringstatechange', () => {
-        console.log(
-            `ICE gathering state changed: ${firebase.peerConnection.iceGatheringState}`);
-    });
-
-    firebase.peerConnection.addEventListener('connectionstatechange', () => {
-        console.log(`Connection state change: ${firebase.peerConnection.connectionState}`);
-    });
-
-    firebase.peerConnection.addEventListener('signalingstatechange', () => {
-        console.log(`Signaling state change: ${firebase.peerConnection.signalingState}`);
-    });
-
-    firebase.peerConnection.addEventListener('iceconnectionstatechange ', () => {
-        console.log(
-            `ICE connection state change: ${firebase.peerConnection.iceConnectionState}`);
-    });
-}
 
 firebase.openUserMedia = async () => {
     const stream = await navigator.mediaDevices.getUserMedia(

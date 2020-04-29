@@ -1,21 +1,29 @@
-import Form from "../components/Form"
-import Cookies from "js-cookie";
+
 import { useRouter } from "next/router";
 import { useState } from "react";
 import firebase from "../services/firebase";
+import { Button } from "semantic-ui-react";
 
 export default () => {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const onSubmit = (name) => {
+  const onSubmit = () => {
     setLoading(true);
-    Cookies.set('name', name);
     firebase.createRoom().then((id) => {
       setLoading(false);
-      router.push(`/${id}`)
+      router.push("/[roomId]", `/${id}`)
     });
   }
   return (
-    <Form defaultValue={Cookies.get('name') || ""} onSubmit={onSubmit} loading={loading} />
+    <Button
+      loading={loading}
+      color="green"
+      onClick={onSubmit}
+      type="submit"
+      style={{ color: "white" }}
+      size="huge"
+      circular
+      content="Create room"
+    />
   )
 }
