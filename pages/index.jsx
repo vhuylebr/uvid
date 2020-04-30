@@ -1,8 +1,8 @@
 
 import { useRouter } from "next/router";
 import { useState } from "react";
-import firebase from "../services/firebase";
 import { Button } from "semantic-ui-react";
+import firebase from "../services/firebase";
 
 export default () => {
   const router = useRouter();

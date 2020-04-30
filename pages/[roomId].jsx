@@ -24,7 +24,6 @@ export default () => {
                 });
             }
         })
-
     };
     const onCopyLink = () => {
         navigator.clipboard.writeText(window.location.href);
