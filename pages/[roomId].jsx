@@ -19,11 +19,11 @@ export default () => {
         firebase.openUserMedia().then(() => {
             if (router.query.roomId) {
                 firebase.joinRoomById(router.query.roomId, name, setNames).then(() => {
-                    setLoading(false);
                     setSettingName(false);
+                    setLoading(false)
                 });
             }
-        });
+        })
 
     };
     const onCopyLink = () => {
@@ -48,13 +48,13 @@ export default () => {
                     </Grid.Column>
                     <Grid.Column stretched verticalAlign="middle" >
                         <div width="100%">
-                            <video ref={video => video && (video.srcObject = firebase.remoteStreams[0])} muted autoPlay width="100%" ></video>
+                            <video ref={video => video && (video.srcObject = firebase.remoteStreams[0])} autoPlay width="100%" ></video>
                             <Label style={styleLabel} >{names[0]}</Label>
                         </div>
                     </Grid.Column>
                     <Grid.Column verticalAlign="middle" >
                         <div width="100%">
-                            <video ref={video => video && (video.srcObject = firebase.remoteStreams[1])} muted autoPlay width="100%" ></video>
+                            <video ref={video => video && (video.srcObject = firebase.remoteStreams[1])} autoPlay width="100%" ></video>
                             <Label style={styleLabel} >{names[1]}</Label>
                         </div>
                     </Grid.Column>
@@ -62,13 +62,13 @@ export default () => {
                 <Grid.Row columns={3}>
                     <Grid.Column verticalAlign="middle" >
                         <div width="100%">
-                            <video ref={video => video && (video.srcObject = firebase.remoteStreams[2])} muted autoPlay width="100%" ></video>
+                            <video ref={video => video && (video.srcObject = firebase.remoteStreams[2])} autoPlay width="100%" ></video>
                             <Label style={styleLabel} >{names[2]}</Label>
                         </div>
                     </Grid.Column>
                     <Grid.Column verticalAlign="middle" >
                         <div width="100%">
-                            <video ref={video => video && (video.srcObject = firebase.remoteStreams[3])} muted autoPlay width="100%" ></video>
+                            <video ref={video => video && (video.srcObject = firebase.remoteStreams[3])} autoPlay width="100%" ></video>
                             <Label style={styleLabel} >{names[3]}</Label>
                         </div>
                     </Grid.Column>
