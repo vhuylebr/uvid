@@ -3,15 +3,16 @@ import "firebase/auth";
 import "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyA5ukzvCh3LBVM0798kbq-Mvw06bOxTHwE",
-    authDomain: "uvid-88fcd.firebaseapp.com",
-    databaseURL: "https://uvid-88fcd.firebaseio.com",
-    projectId: "uvid-88fcd",
-    storageBucket: "uvid-88fcd.appspot.com",
-    messagingSenderId: "420003435189",
-    appId: "1:420003435189:web:c6cf0960b1237ae756a4fc",
-    measurementId: "G-ND5RTXVHVW"
+    apiKey: "AIzaSyCGDPT_UbScWlk6-m6J1kGEmqHZTeYErAY",
+    authDomain: "ulavalvid.firebaseapp.com",
+    databaseURL: "https://ulavalvid.firebaseio.com",
+    projectId: "ulavalvid",
+    storageBucket: "ulavalvid.appspot.com",
+    messagingSenderId: "963226481843",
+    appId: "1:963226481843:web:a4f2730c3a2546b9322cc6",
+    measurementId: "G-ZFDMLCF247"
 };
+
 if (firebase.isInitialized === undefined) {
     firebase.initializeApp(firebaseConfig);
     firebase.isInitialized = true;
