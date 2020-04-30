@@ -13,7 +13,7 @@ const configuration = {
     ],
     iceCandidatePoolSize: 10,
 };
-firebase.maxNbUser = 2;
+firebase.maxNbUser = 5;
 firebase.peerConnections = [];
 firebase.localStream = null;
 firebase.remoteStreams = Array(4);
