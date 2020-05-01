@@ -11,7 +11,12 @@ export default () => {
     setLoading(true);
     firebase.createRoom().then((id) => {
       setLoading(false);
-      router.push("/[roomId]", `/${id}`)
+      router.push({
+        pathname: "/room",
+        query: {
+          roomId: id
+        }
+      })
     });
   }
   return (
