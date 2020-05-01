@@ -17,22 +17,47 @@ export default () => {
         setLoading(true);
         Cookies.set("name", name);
         firebase.openUserMedia().then(() => {
-            if (router.query.roomId) {
-                firebase.joinRoomById(router.query.roomId, name, setNames).then(() => {
-                    setSettingName(false);
-                    setLoading(false)
-                });
-            }
+            firebase.joinRoomById(router.query.roomId, name, setNames).then(() => {
+                setSettingName(false);
+                setLoading(false)
+            });
         })
 
     };
+    // const [loadingCreation, setLoadingCreation] = useState(false);
+    // const onCreate = () => {
+    //     setLoadingCreation(true);
+    //     firebase.createRoom().then((id) => {
+    //         setLoading(false);
+    //         router.push({
+    //             pathname: "/room",
+    //             query: {
+    //                 roomId: id
+    //             }
+    //         })
+    //     });
+    // }
     const onCopyLink = () => {
-        navigator.clipboard.writeText(window.location.href);
+        navigator.clipboard.writeText(`${window.location.href}?roomId=${firebase.roomId}`);
         setCopied(true);
         setTimeout(() => {
             setCopied(false);
         }, 3000)
     }
+    // if (router.query.roomId === undefined) {
+    //     return (
+    //         <Button
+    //             loading={loadingCreation}
+    //             color="green"
+    //             onClick={onCreate}
+    //             type="submit"
+    //             style={{ color: "white" }}
+    //             size="huge"
+    //             circular
+    //             content="Create room"
+    //         />
+    //     )
+    // }
     if (isSettingName) {
         return <Form defaultValue={Cookies.get('name') || ""} onSubmit={onSubmit} loading={loading} />
     }

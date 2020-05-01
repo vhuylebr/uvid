@@ -35,7 +35,14 @@ firebase.remoteStreams = Array(4);
 firebase.roomId = null;
 firebase.joinRoomById = async (roomId, name, setNames) => {
     const db = firebase.firestore();
-    const roomRef = db.collection('rooms').doc(`${roomId}`);
+    let roomRef;
+    if (roomId) {
+        roomRef = db.collection('rooms').doc(`${roomId}`);
+    } else {
+        roomRef = await db.collection('rooms').doc();
+        await roomRef.set({});
+        firebase.roomId = roomRef.id;
+    }
     const roomSnapshot = await roomRef.get();
     if (roomSnapshot.exists) {
         const offers = await roomSnapshot.data();
